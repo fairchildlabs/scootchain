@@ -1,2 +1,4 @@
-# scootchain
-An equitable intrinsic value system
+"# Scootchain" 
+git clone --recurse-submodules https://github.com/fairchildlabs/scootchain.git
+
+
