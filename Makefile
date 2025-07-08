@@ -1,7 +1,7 @@
 # Makefile for scootchain
 
 CC = gcc
-CFLAGS = -O2 -Wall -Ithird_party/liboqs/include
+CFLAGS = -O2 -Wall -Ithird_party/liboqs/build/include
 LDFLAGS = third_party/liboqs/build/lib/liboqs.a
 TARGET = scootchain
 SRC = scootchain.c
