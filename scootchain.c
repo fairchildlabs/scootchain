@@ -4,7 +4,7 @@
 #include <string.h>
 #include <oqs/oqs.h>
 
-#define KEY_TYPE "MLDSA2"  // ML-DSA level 2 (NIST level 2 security)
+#define KEY_TYPE "ML-DSA-44"
 #define PRIVKEY_FILE "scootchain_sk.bin"
 
 void hexprint(const uint8_t *data, size_t len) 
