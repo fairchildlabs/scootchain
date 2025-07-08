@@ -4,7 +4,8 @@
 #include <string.h>
 #include <oqs/oqs.h>
 
-#define KEY_TYPE "ML-DSA-44"
+//#define KEY_TYPE "ML-DSA-44"
+#define KEY_TYPE "ML-DSA-87"
 #define PRIVKEY_FILE "scootchain_sk.bin"
 
 void hexprint(const uint8_t *data, size_t len) 
