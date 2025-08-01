@@ -1,12 +1,51 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Ithird_party/liboqs/build/include
-LDFLAGS = third_party/liboqs/build/lib/liboqs.a
+CFLAGS = -O2 -Wall \
+    -Ithird_party/liboqs/build/include \
+    -Ithird_party/rocksdb/include
+LDFLAGS = \
+    third_party/liboqs/build/lib/liboqs.a \
+    third_party/rocksdb/build/librocksdb.a \
+    -lpthread -ldl -lrt -lgcc_s -lc
 
-all: scootchain
+SRC = scootchain.c db_wrapper.c
+OBJ = $(SRC:.c=.o)
+TARGET = scootchain
 
-scootchain: scootchain.c
-	$(CC) $(CFLAGS) scootchain.c -o scootchain $(LDFLAGS)
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f scootchain
+	rm -f $(OBJ) $(TARGET)
+
+# Build liboqs
+liboqs:
+	cd third_party/liboqs && mkdir -p build && cd build && cmake -DBUILD_SHARED_LIBS=OFF .. && make -j$(nproc)
+
+# Build RocksDB without gflags/snappy/zlib
+rocksdb:
+	cd third_party/rocksdb && rm -rf build && mkdir -p build && cd build && \
+	cmake -DCMAKE_BUILD_TYPE=Release \
+	      -DROCKSDB_BUILD_SHARED=OFF \
+	      -DROCKSDB_BUILD_STATIC=ON \
+	      -DROCKSDB_BUILD_TESTS=OFF \
+	      -DROCKSDB_BUILD_BENCHMARKS=OFF \
+	      -DWITH_SNAPPY=OFF \
+	      -DWITH_ZLIB=OFF \
+	      -DWITH_LZ4=OFF \
+	      -DWITH_ZSTD=OFF \
+	      -DWITH_BZ2=OFF \
+	      -DWITH_GFLAGS=OFF \
+	      -DPORTABLE=ON \
+	      .. && \
+	make -j$(nproc)
+
+# Build everything
+deps: liboqs rocksdb
+
+.PHONY: all clean liboqs rocksdb deps
 

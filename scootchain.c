@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <oqs/oqs.h>
 #include <oqs/sha3.h>
+#include "db_wrapper.h"
 
 #define ADDR_LEN 32
 #define SEED_LEN 32
