@@ -3,154 +3,202 @@
 #include <string.h>
 #include <stdint.h>
 #include <oqs/oqs.h>
-#include <oqs/sha3.h>  // <-- Added for OQS_SHA3_sha3_256
+#include <oqs/sha3.h>
 
-#define MASTER_PRIV_FILE "master_priv.bin"
-#define MASTER_PUB_FILE  "master_pub.bin"
-#define WALLET_FILE      "wallet.addr"
+#define ADDR_LEN 32
+#define SEED_LEN 32
 
-// Choose a PQ signature scheme
-#define SIG_ALG "Dilithium2"  // Change if desired
-
-// SHA3-256 wrapper
+// ===== Utility: SHA3-256 via SHAKE256 (liboqs one-shot) =====
 void sha3_256(const uint8_t *in, size_t in_len, uint8_t *out) {
-    OQS_SHA3_sha3_256(out, in, in_len);
+    OQS_SHA3_shake256(out, 32, in, in_len);
 }
 
-// Save binary file
-void save_file(const char *filename, const uint8_t *data, size_t len) {
-    FILE *f = fopen(filename, "wb");
+// ===== Local DRBG for deterministic keys =====
+typedef struct {
+    uint8_t state[32];
+    uint64_t counter;
+} local_drbg_t;
+
+void local_drbg_init(local_drbg_t *drbg, const uint8_t *seed) {
+    memcpy(drbg->state, seed, 32);
+    drbg->counter = 0;
+}
+
+void local_drbg_randombytes(local_drbg_t *drbg, uint8_t *out, size_t outlen) {
+    uint8_t buf[40];
+    while (outlen > 0) {
+        memcpy(buf, drbg->state, 32);
+        memcpy(buf + 32, &drbg->counter, 8);
+        uint8_t hash[32];
+        sha3_256(buf, sizeof(buf), hash);
+
+        size_t take = outlen < 32 ? outlen : 32;
+        memcpy(out, hash, take);
+        out += take;
+        outlen -= take;
+        drbg->counter++;
+    }
+}
+
+// ===== Save & Load helpers =====
+void save_file(const char *path, const uint8_t *data, size_t len) {
+    FILE *f = fopen(path, "wb");
     if (!f) { perror("fopen"); exit(1); }
     fwrite(data, 1, len, f);
     fclose(f);
 }
 
-// Load binary file
-void load_file(const char *filename, uint8_t *data, size_t len) {
-    FILE *f = fopen(filename, "rb");
+void load_file(const char *path, uint8_t *data, size_t len) {
+    FILE *f = fopen(path, "rb");
     if (!f) { perror("fopen"); exit(1); }
-    size_t read_bytes = fread(data, 1, len, f);
-    if (read_bytes != len) {
-        fprintf(stderr, "Error: expected %zu bytes, got %zu\n", len, read_bytes);
+    if (fread(data, 1, len, f) != len) {
+        fprintf(stderr, "File read error or unexpected length\n");
         exit(1);
     }
     fclose(f);
 }
 
-// Generate key pair
-void cmd_genkey() {
-    OQS_SIG *sig = OQS_SIG_new(SIG_ALG);
-    if (!sig) {
-        fprintf(stderr, "Failed to init signature scheme %s\n", SIG_ALG);
-        exit(1);
-    }
+// ===== Generate Address from Public Key =====
+void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, uint8_t *address) {
+    sha3_256(pubkey, pubkey_len, address);
+}
 
+// ===== Deterministic keypair from seed =====
+void genkey_from_seed(const uint8_t *seed) {
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig) { fprintf(stderr, "OQS_SIG_new failed\n"); exit(1); }
+
+    uint8_t *pub = malloc(sig->length_public_key);
     uint8_t *priv = malloc(sig->length_secret_key);
-    uint8_t *pub  = malloc(sig->length_public_key);
+
+    local_drbg_t drbg;
+    local_drbg_init(&drbg, seed);
+    local_drbg_randombytes(&drbg, priv, sig->length_secret_key);
+    local_drbg_randombytes(&drbg, pub, sig->length_public_key);
+
+    save_file("public.key", pub, sig->length_public_key);
+    save_file("private.key", priv, sig->length_secret_key);
+
+    printf("Generated deterministic key pair from seed\n");
+
+    free(pub);
+    free(priv);
+    OQS_SIG_free(sig);
+}
+
+// ===== Command: genkey (random) =====
+void cmd_genkey(void) {
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig) { fprintf(stderr, "OQS_SIG_new failed\n"); exit(1); }
+
+    uint8_t *pub = malloc(sig->length_public_key);
+    uint8_t *priv = malloc(sig->length_secret_key);
 
     if (OQS_SIG_keypair(sig, pub, priv) != OQS_SUCCESS) {
-        fprintf(stderr, "Keypair generation failed\n");
+        fprintf(stderr, "Key generation failed\n");
         exit(1);
     }
 
-    save_file(MASTER_PRIV_FILE, priv, sig->length_secret_key);
-    save_file(MASTER_PUB_FILE, pub, sig->length_public_key);
+    save_file("public.key", pub, sig->length_public_key);
+    save_file("private.key", priv, sig->length_secret_key);
 
-    printf("Generated keypair:\n  Public key: %s\n  Private key: %s\n",
-           MASTER_PUB_FILE, MASTER_PRIV_FILE);
+    printf("Generated random key pair: public.key, private.key\n");
 
-    OQS_SIG_free(sig);
+    free(pub);
     free(priv);
-    free(pub);
-}
-
-// Generate wallet address from public key
-void cmd_genwallet() {
-    OQS_SIG *sig = OQS_SIG_new(SIG_ALG);
-    if (!sig) { fprintf(stderr, "SIG init failed\n"); exit(1); }
-
-    uint8_t *pub = malloc(sig->length_public_key);
-    load_file(MASTER_PUB_FILE, pub, sig->length_public_key);
-
-    uint8_t hash[32];
-    sha3_256(pub, sig->length_public_key, hash);
-
-    save_file(WALLET_FILE, hash, 32);
-    printf("Wallet address saved to %s\n", WALLET_FILE);
-
     OQS_SIG_free(sig);
-    free(pub);
 }
 
-// Verify wallet address matches public key
-void cmd_checkwallet() {
-    OQS_SIG *sig = OQS_SIG_new(SIG_ALG);
-    if (!sig) { fprintf(stderr, "SIG init failed\n"); exit(1); }
+// ===== Command: genwallet =====
+void cmd_genwallet(void) {
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
 
     uint8_t *pub = malloc(sig->length_public_key);
-    load_file(MASTER_PUB_FILE, pub, sig->length_public_key);
+    load_file("public.key", pub, sig->length_public_key);
 
-    uint8_t expected_hash[32];
-    sha3_256(pub, sig->length_public_key, expected_hash);
+    uint8_t address[ADDR_LEN];
+    pubkey_to_address(pub, sig->length_public_key, address);
+    save_file("wallet.addr", address, ADDR_LEN);
 
-    uint8_t stored_hash[32];
-    load_file(WALLET_FILE, stored_hash, 32);
+    printf("Wallet address generated: wallet.addr\n");
 
-    if (memcmp(expected_hash, stored_hash, 32) == 0) {
-        printf("Wallet address matches public key.\n");
+    free(pub);
+    OQS_SIG_free(sig);
+}
+
+// ===== Command: checkwallet =====
+void cmd_checkwallet(void) {
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+
+    uint8_t *pub = malloc(sig->length_public_key);
+    load_file("public.key", pub, sig->length_public_key);
+
+    uint8_t expected_addr[ADDR_LEN];
+    load_file("wallet.addr", expected_addr, ADDR_LEN);
+
+    uint8_t actual_addr[ADDR_LEN];
+    pubkey_to_address(pub, sig->length_public_key, actual_addr);
+
+    if (memcmp(expected_addr, actual_addr, ADDR_LEN) == 0) {
+        printf("Wallet address matches public key ✅\n");
     } else {
-        printf("Wallet address does NOT match public key!\n");
+        printf("Wallet address does NOT match public key ❌\n");
     }
 
-    OQS_SIG_free(sig);
     free(pub);
+    OQS_SIG_free(sig);
 }
 
-// Derive child keypair from master private key and index
-void cmd_childkey(uint32_t index) {
-    OQS_SIG *sig = OQS_SIG_new(SIG_ALG);
-    if (!sig) { fprintf(stderr, "SIG init failed\n"); exit(1); }
+// ===== Command: seedgen =====
+void cmd_seedgen(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s seedgen <word1> <word2> ...\n", argv[0]);
+        exit(1);
+    }
+
+    char combined[1024] = {0};
+    for (int i = 2; i < argc; i++) {
+        strcat(combined, argv[i]);
+        if (i != argc - 1) strcat(combined, " ");
+    }
+
+    uint8_t seed[SEED_LEN];
+    sha3_256((uint8_t *)combined, strlen(combined), seed);
+
+    genkey_from_seed(seed);
+}
+
+// ===== Command: child key derivation =====
+void cmd_child(int index) {
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
 
     uint8_t *master_priv = malloc(sig->length_secret_key);
-    load_file(MASTER_PRIV_FILE, master_priv, sig->length_secret_key);
+    load_file("private.key", master_priv, sig->length_secret_key);
 
-    uint8_t seed[32];
-    memcpy(seed, master_priv, 32); // take first 32 bytes
-    seed[0] ^= (index & 0xFF);     // simple variation with index
+    uint8_t buf[4096];
+    memcpy(buf, master_priv, sig->length_secret_key);
+    memcpy(buf + sig->length_secret_key, &index, sizeof(index));
 
-    uint8_t *child_priv = malloc(sig->length_secret_key);
-    uint8_t *child_pub  = malloc(sig->length_public_key);
+    uint8_t child_seed[SEED_LEN];
+    sha3_256(buf, sig->length_secret_key + sizeof(index), child_seed);
 
-    if (OQS_SIG_keypair(sig, child_pub, child_priv) != OQS_SUCCESS) {
-        fprintf(stderr, "Child keypair generation failed\n");
-        exit(1);
-    }
+    genkey_from_seed(child_seed);
 
-    char priv_name[64], pub_name[64];
-    snprintf(priv_name, sizeof(priv_name), "child_%u_priv.bin", index);
-    snprintf(pub_name, sizeof(pub_name), "child_%u_pub.bin", index);
-
-    save_file(priv_name, child_priv, sig->length_secret_key);
-    save_file(pub_name, child_pub, sig->length_public_key);
-
-    printf("Generated child keypair #%u\n", index);
-
-    OQS_SIG_free(sig);
     free(master_priv);
-    free(child_priv);
-    free(child_pub);
+    OQS_SIG_free(sig);
 }
 
-// Main command dispatcher
-int main(int argc, char *argv[]) {
+// ===== Main =====
+int main(int argc, char **argv) 
+{
     if (argc < 2) {
-        printf("Usage: %s <command> [args]\n", argv[0]);
-        printf("Commands:\n");
-        printf("  genkey         - Generate master keypair\n");
-        printf("  genwallet      - Generate wallet address from master pubkey\n");
-        printf("  checkwallet    - Check wallet matches pubkey\n");
-        printf("  childkey <idx> - Generate child keypair with index\n");
-        return 0;
+        fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>]\n", argv[0]);
+        return 1;
     }
 
     if (strcmp(argv[1], "genkey") == 0) {
@@ -159,18 +207,15 @@ int main(int argc, char *argv[]) {
         cmd_genwallet();
     } else if (strcmp(argv[1], "checkwallet") == 0) {
         cmd_checkwallet();
-    } else if (strcmp(argv[1], "childkey") == 0) {
-        if (argc < 3) {
-            fprintf(stderr, "childkey requires an index argument\n");
-            return 1;
-        }
-        uint32_t index = atoi(argv[2]);
-        cmd_childkey(index);
+    } else if (strcmp(argv[1], "seedgen") == 0) {
+        cmd_seedgen(argc, argv);
+    } else if (strcmp(argv[1], "child") == 0) {
+        if (argc < 3) { fprintf(stderr, "Need child index\n"); return 1; }
+        cmd_child(atoi(argv[2]));
     } else {
         fprintf(stderr, "Unknown command: %s\n", argv[1]);
         return 1;
     }
-
     return 0;
 }
 
