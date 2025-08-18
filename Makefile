@@ -4,10 +4,11 @@ CFLAGS = -O2 -Wall \
     -Ithird_party/rocksdb/include
 LDFLAGS = \
     third_party/liboqs/build/lib/liboqs.a \
-    third_party/rocksdb/build/librocksdb.a \
+#    third_party/rocksdb/build/librocksdb.a \
     -lpthread -ldl -lrt -lgcc_s -lc
 
-SRC = scootchain.c db_wrapper.c
+#SRC = scootchain.c db_wrapper.c
+SRC = scootchain.c 
 OBJ = $(SRC:.c=.o)
 TARGET = scootchain
 
@@ -42,7 +43,7 @@ rocksdb:
 	      -DWITH_GFLAGS=OFF \
 	      -DPORTABLE=ON \
 	      .. && \
-	make -j$(nproc)
+	make -j1
 
 # Build everything
 deps: liboqs rocksdb
