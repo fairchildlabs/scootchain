@@ -25,7 +25,7 @@ clean:
 
 # Build liboqs
 liboqs:
-	cd third_party/liboqs && mkdir -p build && cd build && cmake -DBUILD_SHARED_LIBS=OFF .. && make -j$(nproc)
+	cd third_party/liboqs && mkdir -p build && cd build && cmake -DBUILD_SHARED_LIBS=OFF -DOQS_USE_OPENSSL=OFF -DOQS_DIST_BUILD=ON .. && make -j1
 
 # Build RocksDB without gflags/snappy/zlib
 rocksdb:
