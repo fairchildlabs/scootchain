@@ -1,0 +1,11 @@
+# Build artifacts
+*.o
+*.d
+scootchain
+
+# Key files and wallets (for development)
+*.key
+wallet.addr
+
+# Third party build directories
+third_party/*/build/
