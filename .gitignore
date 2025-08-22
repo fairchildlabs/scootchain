@@ -1,3 +1,11 @@
-private.key
-public.key
+# Build artifacts
+*.o
+*.d
+scootchain
+
+# Key files (should not be committed)
+*.key
 wallet.addr
+
+# Build directories
+third_party/*/build/
