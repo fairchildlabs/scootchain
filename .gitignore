@@ -1,0 +1,11 @@
+# Compiled binaries
+scootchain
+*.o
+*.d
+
+# Generated key files
+*.key
+*.addr
+
+# Build directories (but keep dependencies in third_party)
+build/
