@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -O2 -Wall \
+    -Iinc \
     -Ithird_party/liboqs/build/include \
     -Ithird_party/rocksdb/include
 LDFLAGS = \
