@@ -112,7 +112,7 @@ void load_file(const char *path, uint8_t *data, size_t len) {
 // flag: 1 byte (set to 0 for now)
 // checksum: 1 byte (CRC-8 over flag + 32-byte hash)
 // hash: 32 bytes (SHA3-256 of public key)
-void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, uint8_t *address) {
+void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, scoot_address address) {
     // Generate 32-byte hash from public key
     uint8_t hash[32];
     sha3_256(pubkey, pubkey_len, hash);
@@ -134,7 +134,7 @@ void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, uint8_t *addres
 
 // ===== Validate Address Format =====
 // Returns 1 if address is valid, 0 if invalid
-int validate_address(const uint8_t *address) {
+int validate_address(const scoot_address address) {
     // Check flag byte (must be 0 for now)
     if (address[0] != 0) {
         return 0;
@@ -208,7 +208,7 @@ void cmd_genwallet(void) {
     uint8_t *pub = malloc(sig->length_public_key);
     load_file("public.key", pub, sig->length_public_key);
 
-    uint8_t address[ADDR_LEN];
+    scoot_address address;
     pubkey_to_address(pub, sig->length_public_key, address);
     save_file("wallet.addr", address, ADDR_LEN);
 
@@ -226,7 +226,7 @@ void cmd_checkwallet(void) {
     uint8_t *pub = malloc(sig->length_public_key);
     load_file("public.key", pub, sig->length_public_key);
 
-    uint8_t expected_addr[ADDR_LEN];
+    scoot_address expected_addr;
     load_file("wallet.addr", expected_addr, ADDR_LEN);
 
     // Validate address format first
@@ -237,7 +237,7 @@ void cmd_checkwallet(void) {
         return;
     }
 
-    uint8_t actual_addr[ADDR_LEN];
+    scoot_address actual_addr;
     pubkey_to_address(pub, sig->length_public_key, actual_addr);
 
     if (memcmp(expected_addr, actual_addr, ADDR_LEN) == 0) {
