@@ -1,6 +1,4 @@
 CC = gcc
-<<<<<<< HEAD
-
 # Compile flags: add -MMD -MP to auto-generate .d files for header deps
 CFLAGS = -O2 -Wall -MMD -MP \
     -Ithird_party/liboqs/build/include \
