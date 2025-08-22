@@ -7,12 +7,44 @@
 #include "db_wrapper.h"
 #include "scootchain.h"
 
-#define ADDR_LEN 32
+#define ADDR_LEN 34  // Updated: 1 flag + 1 checksum + 32 address hash
 #define SEED_LEN 32
 
 // ===== Utility: SHA3-256 via SHAKE256 (liboqs one-shot) =====
 void sha3_256(const uint8_t *in, size_t in_len, uint8_t *out) {
     OQS_SHA3_shake256(out, 32, in, in_len);
+}
+
+// ===== CRC-8 implementation with polynomial 0x07 =====
+uint8_t crc8_table[256];
+static int crc8_table_initialized = 0;
+
+void crc8_init_table(void) {
+    if (crc8_table_initialized) return;
+    
+    const uint8_t poly = 0x07;
+    for (int i = 0; i < 256; i++) {
+        uint8_t crc = i;
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ poly;
+            } else {
+                crc = crc << 1;
+            }
+        }
+        crc8_table[i] = crc;
+    }
+    crc8_table_initialized = 1;
+}
+
+uint8_t crc8(const uint8_t *data, size_t len) {
+    crc8_init_table();
+    
+    uint8_t crc = 0;
+    for (size_t i = 0; i < len; i++) {
+        crc = crc8_table[crc ^ data[i]];
+    }
+    return crc;
 }
 
 // ===== Local DRBG for deterministic keys =====
@@ -61,8 +93,48 @@ void load_file(const char *path, uint8_t *data, size_t len) {
 }
 
 // ===== Generate Address from Public Key =====
+// New 34-byte address format: [flag][checksum][32-byte hash]
+// flag: 1 byte (set to 0 for now)
+// checksum: 1 byte (CRC-8 over flag + 32-byte hash)
+// hash: 32 bytes (SHA3-256 of public key)
 void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, uint8_t *address) {
-    sha3_256(pubkey, pubkey_len, address);
+    // Generate 32-byte hash from public key
+    uint8_t hash[32];
+    sha3_256(pubkey, pubkey_len, hash);
+    
+    // Set flag byte to 0
+    address[0] = 0;
+    
+    // Copy hash to positions 2-33
+    memcpy(address + 2, hash, 32);
+    
+    // Calculate checksum over flag (position 0) and hash (positions 2-33)
+    uint8_t checksum_data[33];
+    checksum_data[0] = address[0];  // flag
+    memcpy(checksum_data + 1, hash, 32);  // hash
+    
+    // Set checksum at position 1
+    address[1] = crc8(checksum_data, 33);
+}
+
+// ===== Validate Address Format =====
+// Returns 1 if address is valid, 0 if invalid
+int validate_address(const uint8_t *address) {
+    // Check flag byte (must be 0 for now)
+    if (address[0] != 0) {
+        return 0;
+    }
+    
+    // Prepare data for checksum verification: flag + hash
+    uint8_t checksum_data[33];
+    checksum_data[0] = address[0];  // flag
+    memcpy(checksum_data + 1, address + 2, 32);  // hash from positions 2-33
+    
+    // Calculate expected checksum
+    uint8_t expected_checksum = crc8(checksum_data, 33);
+    
+    // Compare with stored checksum at position 1
+    return (address[1] == expected_checksum) ? 1 : 0;
 }
 
 // ===== Deterministic keypair from seed =====
@@ -141,6 +213,14 @@ void cmd_checkwallet(void) {
 
     uint8_t expected_addr[ADDR_LEN];
     load_file("wallet.addr", expected_addr, ADDR_LEN);
+
+    // Validate address format first
+    if (!validate_address(expected_addr)) {
+        printf("Wallet address format is invalid (bad checksum or flag) ❌\n");
+        free(pub);
+        OQS_SIG_free(sig);
+        return;
+    }
 
     uint8_t actual_addr[ADDR_LEN];
     pubkey_to_address(pub, sig->length_public_key, actual_addr);
