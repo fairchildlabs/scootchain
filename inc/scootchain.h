@@ -19,6 +19,9 @@ typedef signed long long   INT64;
 
 typedef UINT64 scoot_ts;
 
+// Address typedef - 34 bytes total (1 flag + 1 checksum + 32 hash)
+typedef UINT8 scoot_address[34];
+
 typedef struct 
 {
 	INT64    scoot_index;
@@ -56,5 +59,9 @@ typedef union
 
 
 
+
+// Function declarations  
+void pubkey_to_address(const UINT8 *pubkey, size_t pubkey_len, scoot_address address);
+int validate_address(const scoot_address address);
 
 #endif
