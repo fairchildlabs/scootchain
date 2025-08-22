@@ -17,20 +17,44 @@ typedef unsigned long long UINT64;
 typedef signed long long   INT64;
 
 
-
+typedef UINT64 scoot_ts;
 
 typedef struct 
 {
-	UINT16 version;
-	UINT8  block_type;
-	UINT8  block_flags;
-	UINT32 block_length;
-	 INT32 index;
-	UINT64 ts;	
-	UINT8  prev_block_hash[32];
-	UINT8  this_block_hash[32];
-
+	INT64    scoot_index;
+	UINT64   block_number;
+	UINT16   version;
+	UINT8    block_type;
+	UINT8    block_flags;
+	UINT32   block_length;
+	UINT64   ts;	
+	UINT8    prev_block_hash[32];
+	UINT8    this_block_hash[32];
+	scoot_ts validation_ts;
+	UINT64   validation_id;
+	UINT8    validation_signature[32];
+	
 
 } scootchain_block_header;
+
+typedef struct
+{
+	INT64   scoot_index;
+ scoot_ts   scoot_timestamp;
+	
+} scootchain_genesis_block_header;
+
+
+typedef union
+{
+	
+
+
+
+} scootchain_genesis_block_u;
+
+
+
+
 
 #endif

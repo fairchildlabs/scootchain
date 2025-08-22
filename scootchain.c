@@ -198,7 +198,9 @@ void cmd_child(int index) {
 // ===== Main =====
 int main(int argc, char **argv) 
 {
-    if (argc < 2) {
+	
+
+	if (argc < 2) {
         fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>]\n", argv[0]);
         return 1;
     }
