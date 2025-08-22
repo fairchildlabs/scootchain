@@ -1,3 +1,16 @@
+/*
+ * Scootchain - Quantum-safe blockchain implementation
+ * 
+ * Address Format (34 bytes total):
+ * [0]     - Flag byte (0 = standard address)
+ * [1]     - Checksum (CRC-8 with polynomial 0x07)
+ * [2-33]  - Address hash (SHA3-256 of public key)
+ * 
+ * The checksum is calculated over the flag byte + 32-byte address hash.
+ * This format provides integrity checking and allows for future extensions
+ * via the flag byte.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,13 +29,15 @@ void sha3_256(const uint8_t *in, size_t in_len, uint8_t *out) {
 }
 
 // ===== CRC-8 implementation with polynomial 0x07 =====
+// CRC-8 with polynomial 0x07 (x^8 + x^2 + x + 1)
+// Used for address checksum validation
 uint8_t crc8_table[256];
 static int crc8_table_initialized = 0;
 
 void crc8_init_table(void) {
     if (crc8_table_initialized) return;
     
-    const uint8_t poly = 0x07;
+    const uint8_t poly = 0x07;  // Standard CRC-8 polynomial
     for (int i = 0; i < 256; i++) {
         uint8_t crc = i;
         for (int j = 0; j < 8; j++) {
