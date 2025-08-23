@@ -19,6 +19,11 @@ typedef signed long long   INT64;
 
 typedef UINT64 scoot_ts;
 
+
+
+//#define SCOOT_ADDRESS_WFLAGS
+	
+
 // Address typedef - 34 bytes total (1 flag + 1 checksum + 32 hash)
 #if SCOOT_ADDRESS_WFLAGS
 typedef struct
