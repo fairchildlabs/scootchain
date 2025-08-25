@@ -209,14 +209,18 @@ static int hex_value(char c)
 static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
 {
     size_t len = strlen(hex);
-    if (len == 0 || (len % 2) != 0)
+    if (len == 0 )//|| ((len - 1) % 2) != 0)
     {
+		
+		printf("!LEN len = %ld outlen = %ld\n", len, *outlen);
+		
         return 0;
     }
     size_t blen = len / 2;
     uint8_t *buf = (uint8_t *)malloc(blen);
     if (!buf)
     {
+		printf("!BUF blen = %ld\n", blen);
         return 0;
     }
     for (size_t i = 0; i < blen; i++)
@@ -225,6 +229,7 @@ static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
         int lo = hex_value(hex[2 * i + 1]);
         if (hi < 0 || lo < 0)
         {
+			printf("hex_code hi = %d lo = %d i= %ld\n", hi, lo, i);
             free(buf);
             return 0;
         }
@@ -262,6 +267,7 @@ static void read_text_file(const char *path, char **out_data, size_t *out_len)
         exit(1);
     }
     long sz = ftell(f);
+	
     if (sz < 0)
     {
         perror("ftell");
@@ -279,10 +285,12 @@ static void read_text_file(const char *path, char **out_data, size_t *out_len)
     size_t n = fread(buf, 1, (size_t)sz, f);
     fclose(f);
     buf[n] = '\0';
+	printf("sz = %ld n = %ld\n", sz, n);
+
     *out_data = buf;
     if (out_len)
     {
-        *out_len = n;
+        *out_len = n + 1;
     }
 }
 
@@ -312,7 +320,12 @@ static char *strip_non_hex(const char *s)
         {
             out[j++] = c;
         }
+		else
+		{
+		 	printf("SKIP %ld\n", i);
+		}
     }
+	printf("OUT J = %ld len = %ld\n", j, len);
     out[j] = '\0';
     return out;
 }
@@ -322,7 +335,7 @@ static void prompt_read_line(const char *prompt, char **out)
     printf("%s", prompt);
     fflush(stdout);
 
-    size_t cap = 256;
+    size_t cap = 8192;
     char *buf = (char *)malloc(cap);
     if (!buf)
     {
@@ -346,8 +359,17 @@ static void prompt_read_line(const char *prompt, char **out)
             }
             buf = nbuf;
         }
-        buf[n++] = (char)c;
-    }
+#if 0
+		printf("[%d](%c)", n, c);
+		if(n % 16 == 0 )
+		{
+			printf("\n");
+		}
+		buf[n++] = (char)c;
+#endif
+
+
+	}
     buf[n] = '\0';
     *out = buf;
 }
@@ -914,6 +936,7 @@ void cmd_verify(const char *in_path)
         char *file_data = NULL;
         size_t file_len = 0;
         read_text_file(in_path, &file_data, &file_len);
+		printf("file_len = %ld\n", file_len);
         char *only_hex = strip_non_hex(file_data);
         free(file_data);
         sig_hex = only_hex;
@@ -927,7 +950,7 @@ void cmd_verify(const char *in_path)
     size_t sig_len = 0;
     if (!hex_decode(sig_hex, &sig_bytes, &sig_len))
     {
-        fprintf(stderr, "Invalid signature hex\n");
+        fprintf(stderr, "*Invalid signature hex\n");
         free(sig_hex);
         free(msg);
         free(pk);
