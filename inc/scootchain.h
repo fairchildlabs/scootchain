@@ -21,25 +21,27 @@ typedef UINT64 scoot_ts;
 
 
 
-//#define SCOOT_ADDRESS_WFLAGS
+#define SCOOT_ADDRESS_WFLAGS
 	
 
 // Address typedef - 34 bytes total (1 flag + 1 checksum + 32 hash)
-#if SCOOT_ADDRESS_WFLAGS
+#ifdef SCOOT_ADDRESS_WFLAGS
 typedef struct
 {
 	union
-
 	{
-	UINT8  f0         : 1;
-	UINT8  f1         : 1;
-	UINT8  pledge     : 1;
-	UINT8  f3         : 1;
-	UINT8  foundation : 1;
-	UINT8  engineer   : 1;
-	UINT8  f6         : 1;
-	UINT8  anon       : 1;
-	}
+		UINT8 raw;
+		struct {
+			UINT8  f0         : 1;
+			UINT8  f1         : 1;
+			UINT8  pledge     : 1;
+			UINT8  f3         : 1;
+			UINT8  foundation : 1;
+			UINT8  engineer   : 1;
+			UINT8  f6         : 1;
+			UINT8  anon       : 1;
+		} bits;
+	} flags;
 	//checksum includes flag and hash
 	UINT8  checksum;
 	UINT8  hash[32];
@@ -88,7 +90,7 @@ typedef union
 
 
 // Function declarations  
-void pubkey_to_address(const UINT8 *pubkey, size_t pubkey_len, scoot_address address);
-int validate_address(const scoot_address address);
+void pubkey_to_address(const UINT8 *pubkey, size_t pubkey_len, scoot_address *address);
+int validate_address(const scoot_address *address);
 
 #endif

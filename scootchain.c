@@ -112,44 +112,44 @@ void load_file(const char *path, uint8_t *data, size_t len) {
 // flag: 1 byte (set to 0 for now)
 // checksum: 1 byte (CRC-8 over flag + 32-byte hash)
 // hash: 32 bytes (SHA3-256 of public key)
-void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, scoot_address address) {
+void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, scoot_address *address) {
     // Generate 32-byte hash from public key
     uint8_t hash[32];
     sha3_256(pubkey, pubkey_len, hash);
     
     // Set flag byte to 0
-    address[0] = 0;
+    address->flags.raw = 0;
     
-    // Copy hash to positions 2-33
-    memcpy(address + 2, hash, 32);
+    // Copy hash to hash field
+    memcpy(address->hash, hash, 32);
     
-    // Calculate checksum over flag (position 0) and hash (positions 2-33)
+    // Calculate checksum over flag and hash
     uint8_t checksum_data[33];
-    checksum_data[0] = address[0];  // flag
+    checksum_data[0] = address->flags.raw;  // flag
     memcpy(checksum_data + 1, hash, 32);  // hash
     
-    // Set checksum at position 1
-    address[1] = crc8(checksum_data, 33);
+    // Set checksum
+    address->checksum = crc8(checksum_data, 33);
 }
 
 // ===== Validate Address Format =====
 // Returns 1 if address is valid, 0 if invalid
-int validate_address(const scoot_address address) {
+int validate_address(const scoot_address *address) {
     // Check flag byte (must be 0 for now)
-    if (address[0] != 0) {
+    if (address->flags.raw != 0) {
         return 0;
     }
     
     // Prepare data for checksum verification: flag + hash
     uint8_t checksum_data[33];
-    checksum_data[0] = address[0];  // flag
-    memcpy(checksum_data + 1, address + 2, 32);  // hash from positions 2-33
+    checksum_data[0] = address->flags.raw;  // flag
+    memcpy(checksum_data + 1, address->hash, 32);  // hash
     
     // Calculate expected checksum
     uint8_t expected_checksum = crc8(checksum_data, 33);
     
-    // Compare with stored checksum at position 1
-    return (address[1] == expected_checksum) ? 1 : 0;
+    // Compare with stored checksum
+    return (address->checksum == expected_checksum) ? 1 : 0;
 }
 
 // ===== Deterministic keypair from seed =====
@@ -209,8 +209,8 @@ void cmd_genwallet(void) {
     load_file("public.key", pub, sig->length_public_key);
 
     scoot_address address;
-    pubkey_to_address(pub, sig->length_public_key, address);
-    save_file("wallet.addr", address, ADDR_LEN);
+    pubkey_to_address(pub, sig->length_public_key, &address);
+    save_file("wallet.addr", (uint8_t*)&address, ADDR_LEN);
 
     printf("Wallet address generated: wallet.addr\n");
 
@@ -227,10 +227,10 @@ void cmd_checkwallet(void) {
     load_file("public.key", pub, sig->length_public_key);
 
     scoot_address expected_addr;
-    load_file("wallet.addr", expected_addr, ADDR_LEN);
+    load_file("wallet.addr", (uint8_t*)&expected_addr, ADDR_LEN);
 
     // Validate address format first
-    if (!validate_address(expected_addr)) {
+    if (!validate_address(&expected_addr)) {
         printf("Wallet address format is invalid (bad checksum or flag) ❌\n");
         free(pub);
         OQS_SIG_free(sig);
@@ -238,9 +238,9 @@ void cmd_checkwallet(void) {
     }
 
     scoot_address actual_addr;
-    pubkey_to_address(pub, sig->length_public_key, actual_addr);
+    pubkey_to_address(pub, sig->length_public_key, &actual_addr);
 
-    if (memcmp(expected_addr, actual_addr, ADDR_LEN) == 0) {
+    if (memcmp(&expected_addr, &actual_addr, ADDR_LEN) == 0) {
         printf("Wallet address matches public key ✅\n");
     } else {
         printf("Wallet address does NOT match public key ❌\n");
