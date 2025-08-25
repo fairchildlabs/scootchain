@@ -354,36 +354,32 @@ int main(int argc, char **argv)
     {
         cmd_genkey();
     }
-    else
-        if (strcmp(argv[1], "genwallet") == 0)
+    else if (strcmp(argv[1], "genwallet") == 0)
+    {
+        cmd_genwallet();
+    }
+    else if (strcmp(argv[1], "checkwallet") == 0)
+    {
+        cmd_checkwallet();
+    }
+    else if (strcmp(argv[1], "seedgen") == 0)
+    {
+        cmd_seedgen(argc, argv);
+    }
+    else if (strcmp(argv[1], "child") == 0)
+    {
+        if (argc < 3)
         {
-            cmd_genwallet();
+            fprintf(stderr, "Need child index\n");
+            return 1;
         }
-        else
-            if (strcmp(argv[1], "checkwallet") == 0)
-            {
-                cmd_checkwallet();
-            }
-            else
-                if (strcmp(argv[1], "seedgen") == 0)
-                {
-                    cmd_seedgen(argc, argv);
-                }
-                else
-                    if (strcmp(argv[1], "child") == 0)
-                    {
-                        if (argc < 3)
-                        {
-                            fprintf(stderr, "Need child index\n");
-                            return 1;
-                        }
-                        cmd_child(atoi(argv[2]));
-                    }
-                    else
-                    {
-                        fprintf(stderr, "Unknown command: %s\n", argv[1]);
-                        return 1;
-                    }
+        cmd_child(atoi(argv[2]));
+    }
+    else
+    {
+        fprintf(stderr, "Unknown command: %s\n", argv[1]);
+        return 1;
+    }
     return 0;
 }
 

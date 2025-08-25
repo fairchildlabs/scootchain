@@ -8,5 +8,4 @@
 --suffix=none
 # Formatting preferences
 --break-one-line-headers
---break-elseifs
 --add-braces
