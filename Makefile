@@ -68,3 +68,10 @@ deps: liboqs rocksdb
 
 .PHONY: all clean liboqs rocksdb deps
 
+# Format C sources/headers in repo root and inc/
+format:
+	@echo "Formatting C and headers with astyle (Allman)"
+	@find . -maxdepth 1 -type f \( -name "*.c" -o -name "*.h" \) -print0 | xargs -0 -r astyle --options=.astylerc
+	@find inc -type f \( -name "*.c" -o -name "*.h" \) -print0 2>/dev/null | xargs -0 -r astyle --options=.astylerc
+
+.PHONY: format
