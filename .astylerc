@@ -6,5 +6,7 @@
 --indent-preproc-define
 --indent-col1-comments
 --suffix=none
-# Keep config compatible with older astyle versions
-# Note: options like break-one-line-headers / break-one-line-blocks may not be available
+# Formatting preferences
+--break-one-line-headers
+--break-elseifs
+--add-braces

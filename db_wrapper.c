@@ -54,7 +54,10 @@ char *db_get(const char *key)
         err = NULL;
         return NULL;
     }
-    if (!val) return NULL;
+    if (!val)
+    {
+        return NULL;
+    }
 
     char *result = malloc(val_len + 1);
     memcpy(result, val, val_len);
@@ -65,7 +68,13 @@ char *db_get(const char *key)
 
 void db_close()
 {
-    if (db) rocksdb_close(db);
-    if (options) rocksdb_options_destroy(options);
+    if (db)
+    {
+        rocksdb_close(db);
+    }
+    if (options)
+    {
+        rocksdb_options_destroy(options);
+    }
 }
 

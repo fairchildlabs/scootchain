@@ -37,7 +37,10 @@ static int crc8_table_initialized = 0;
 
 void crc8_init_table(void)
 {
-    if (crc8_table_initialized) return;
+    if (crc8_table_initialized)
+    {
+        return;
+    }
 
     const uint8_t poly = 0x07;  // Standard CRC-8 polynomial
     for (int i = 0; i < 256; i++)
@@ -302,7 +305,10 @@ void cmd_seedgen(int argc, char **argv)
     for (int i = 2; i < argc; i++)
     {
         strcat(combined, argv[i]);
-        if (i != argc - 1) strcat(combined, " ");
+        if (i != argc - 1)
+        {
+            strcat(combined, " ");
+        }
     }
 
     uint8_t seed[SEED_LEN];
@@ -348,32 +354,36 @@ int main(int argc, char **argv)
     {
         cmd_genkey();
     }
-    else if (strcmp(argv[1], "genwallet") == 0)
-    {
-        cmd_genwallet();
-    }
-    else if (strcmp(argv[1], "checkwallet") == 0)
-    {
-        cmd_checkwallet();
-    }
-    else if (strcmp(argv[1], "seedgen") == 0)
-    {
-        cmd_seedgen(argc, argv);
-    }
-    else if (strcmp(argv[1], "child") == 0)
-    {
-        if (argc < 3)
-        {
-            fprintf(stderr, "Need child index\n");
-            return 1;
-        }
-        cmd_child(atoi(argv[2]));
-    }
     else
-    {
-        fprintf(stderr, "Unknown command: %s\n", argv[1]);
-        return 1;
-    }
+        if (strcmp(argv[1], "genwallet") == 0)
+        {
+            cmd_genwallet();
+        }
+        else
+            if (strcmp(argv[1], "checkwallet") == 0)
+            {
+                cmd_checkwallet();
+            }
+            else
+                if (strcmp(argv[1], "seedgen") == 0)
+                {
+                    cmd_seedgen(argc, argv);
+                }
+                else
+                    if (strcmp(argv[1], "child") == 0)
+                    {
+                        if (argc < 3)
+                        {
+                            fprintf(stderr, "Need child index\n");
+                            return 1;
+                        }
+                        cmd_child(atoi(argv[2]));
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Unknown command: %s\n", argv[1]);
+                        return 1;
+                    }
     return 0;
 }
 
