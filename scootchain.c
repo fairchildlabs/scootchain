@@ -177,6 +177,147 @@ int validate_address(const scoot_address address)
     return (address.checksum == expected_checksum) ? 1 : 0;
 }
 
+// ===== Simple helpers =====
+static void hex_encode(const uint8_t *in, size_t in_len, char *out)
+{
+    static const char *hex = "0123456789abcdef";
+    for (size_t i = 0; i < in_len; i++)
+    {
+        out[2 * i] = hex[(in[i] >> 4) & 0xF];
+        out[2 * i + 1] = hex[in[i] & 0xF];
+    }
+    out[2 * in_len] = '\0';
+}
+
+static int hex_value(char c)
+{
+    if (c >= '0' && c <= '9')
+    {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f')
+    {
+        return 10 + (c - 'a');
+    }
+    if (c >= 'A' && c <= 'F')
+    {
+        return 10 + (c - 'A');
+    }
+    return -1;
+}
+
+static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
+{
+    size_t len = strlen(hex);
+    if (len == 0 || (len % 2) != 0)
+    {
+        return 0;
+    }
+    size_t blen = len / 2;
+    uint8_t *buf = (uint8_t *)malloc(blen);
+    if (!buf)
+    {
+        return 0;
+    }
+    for (size_t i = 0; i < blen; i++)
+    {
+        int hi = hex_value(hex[2 * i]);
+        int lo = hex_value(hex[2 * i + 1]);
+        if (hi < 0 || lo < 0)
+        {
+            free(buf);
+            return 0;
+        }
+        buf[i] = (uint8_t)((hi << 4) | lo);
+    }
+    *out = buf;
+    *outlen = blen;
+    return 1;
+}
+
+static void save_text_file(const char *path, const char *data, size_t len)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f)
+    {
+        perror("fopen");
+        exit(1);
+    }
+    fwrite(data, 1, len, f);
+    fclose(f);
+}
+
+static void prompt_read_line(const char *prompt, char **out)
+{
+    printf("%s", prompt);
+    fflush(stdout);
+
+    size_t cap = 256;
+    char *buf = (char *)malloc(cap);
+    if (!buf)
+    {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+
+    size_t n = 0;
+    int c;
+    while ((c = fgetc(stdin)) != EOF && c != '\n')
+    {
+        if (n + 1 >= cap)
+        {
+            cap *= 2;
+            char *nbuf = (char *)realloc(buf, cap);
+            if (!nbuf)
+            {
+                free(buf);
+                fprintf(stderr, "Out of memory\n");
+                exit(1);
+            }
+            buf = nbuf;
+        }
+        buf[n++] = (char)c;
+    }
+    buf[n] = '\0';
+    *out = buf;
+}
+
+static void prompt_and_read_message(uint8_t **msg, size_t *len)
+{
+    printf("Enter message: ");
+    fflush(stdout);
+
+    size_t cap = 256;
+    uint8_t *buf = (uint8_t *)malloc(cap);
+    if (!buf)
+    {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+
+    size_t n = 0;
+    int c;
+    while ((c = fgetc(stdin)) != EOF && c != '\n')
+    {
+        if (n + 1 > cap)
+        {
+            cap *= 2;
+            uint8_t *nbuf = (uint8_t *)realloc(buf, cap);
+            if (!nbuf)
+            {
+                free(buf);
+                fprintf(stderr, "Out of memory\n");
+                exit(1);
+            }
+            buf = nbuf;
+        }
+        buf[n++] = (uint8_t)c;
+    }
+
+    *msg = buf;
+    *len = n;
+}
+
 // ===== Deterministic keypair from seed =====
 void genkey_from_seed(const uint8_t *seed)
 {
@@ -339,6 +480,306 @@ void cmd_child(int index)
     OQS_SIG_free(sig);
 }
 
+// ===== Command: sign =====
+void cmd_sign(const char *out_path)
+{
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig)
+    {
+        fprintf(stderr, "OQS_SIG_new failed\n");
+        exit(1);
+    }
+
+    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    if (!sk)
+    {
+        fprintf(stderr, "Out of memory\n");
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    load_file("private.key", sk, sig->length_secret_key);
+
+    uint8_t *msg = NULL;
+    size_t msg_len = 0;
+    prompt_and_read_message(&msg, &msg_len);
+
+    size_t sig_len = sig->length_signature;
+    uint8_t *signature = (uint8_t *)malloc(sig_len);
+    if (!signature)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+
+    if (OQS_SIG_sign(sig, signature, &sig_len, msg, msg_len, sk) != OQS_SUCCESS)
+    {
+        fprintf(stderr, "Signing failed\n");
+        free(signature);
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+
+    char *hex = (char *)malloc(sig_len * 2 + 1);
+    if (!hex)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(signature);
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    hex_encode(signature, sig_len, hex);
+    printf("Signature (hex): %s\n", hex);
+    if (out_path)
+    {
+        save_text_file(out_path, hex, strlen(hex));
+        printf("Saved signature hex to %s\n", out_path);
+    }
+
+    free(hex);
+    free(signature);
+    free(sk);
+    free(msg);
+    OQS_SIG_free(sig);
+}
+
+// ===== Command: encrypt =====
+// Symmetric stream-encrypt using key derived from private.key
+// keystream = SHAKE256( SHA3-256(private.key) || nonce, outlen=len(msg) )
+// ciphertext = msg XOR keystream
+void cmd_encrypt(const char *out_path)
+{
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig)
+    {
+        fprintf(stderr, "OQS_SIG_new failed\n");
+        exit(1);
+    }
+
+    // Load private key bytes (only used as entropy for key derivation)
+    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    if (!sk)
+    {
+        fprintf(stderr, "Out of memory\n");
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    load_file("private.key", sk, sig->length_secret_key);
+
+    // Derive a 32-byte key from private.key
+    uint8_t kdf_key[32];
+    sha3_256(sk, sig->length_secret_key, kdf_key);
+
+    // Read message
+    uint8_t *msg = NULL;
+    size_t msg_len = 0;
+    prompt_and_read_message(&msg, &msg_len);
+
+    // Random nonce
+    uint8_t nonce[16];
+    OQS_randombytes(nonce, sizeof(nonce));
+
+    // Build input to SHAKE: key || nonce
+    uint8_t *shake_in = (uint8_t *)malloc(sizeof(kdf_key) + sizeof(nonce));
+    if (!shake_in)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    memcpy(shake_in, kdf_key, sizeof(kdf_key));
+    memcpy(shake_in + sizeof(kdf_key), nonce, sizeof(nonce));
+
+    // Derive keystream and encrypt
+    uint8_t *keystream = (uint8_t *)malloc(msg_len);
+    uint8_t *ct = (uint8_t *)malloc(msg_len);
+    if (!keystream || !ct)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(keystream);
+        free(ct);
+        free(shake_in);
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    OQS_SHA3_shake256(keystream, msg_len, shake_in, sizeof(kdf_key) + sizeof(nonce));
+    for (size_t i = 0; i < msg_len; i++)
+    {
+        ct[i] = msg[i] ^ keystream[i];
+    }
+
+    // Output nonce and ciphertext as hex
+    char *nonce_hex = (char *)malloc(sizeof(nonce) * 2 + 1);
+    char *ct_hex = (char *)malloc(msg_len * 2 + 1);
+    if (!nonce_hex || !ct_hex)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(nonce_hex);
+        free(ct_hex);
+        free(keystream);
+        free(ct);
+        free(shake_in);
+        free(sk);
+        free(msg);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    hex_encode(nonce, sizeof(nonce), nonce_hex);
+    hex_encode(ct, msg_len, ct_hex);
+    printf("Nonce (hex): %s\n", nonce_hex);
+    printf("Ciphertext (hex): %s\n", ct_hex);
+    if (out_path)
+    {
+        // Write as two lines: nonce_hex then ciphertext_hex
+        size_t total = strlen(nonce_hex) + 1 + strlen(ct_hex);
+        char *buf = (char *)malloc(total + 1);
+        if (!buf)
+        {
+            fprintf(stderr, "Out of memory\n");
+            free(nonce_hex);
+            free(ct_hex);
+            free(keystream);
+            free(ct);
+            free(shake_in);
+            free(sk);
+            free(msg);
+            OQS_SIG_free(sig);
+            exit(1);
+        }
+        sprintf(buf, "%s\n%s", nonce_hex, ct_hex);
+        save_text_file(out_path, buf, strlen(buf));
+        printf("Saved nonce+ciphertext hex to %s\n", out_path);
+        free(buf);
+    }
+
+    free(nonce_hex);
+    free(ct_hex);
+    free(keystream);
+    free(ct);
+    free(shake_in);
+    free(sk);
+    free(msg);
+    OQS_SIG_free(sig);
+}
+
+// ===== Command: decrypt =====
+void cmd_decrypt(void)
+{
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig)
+    {
+        fprintf(stderr, "OQS_SIG_new failed\n");
+        exit(1);
+    }
+
+    // Load private key and derive key
+    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    if (!sk)
+    {
+        fprintf(stderr, "Out of memory\n");
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    load_file("private.key", sk, sig->length_secret_key);
+    uint8_t kdf_key[32];
+    sha3_256(sk, sig->length_secret_key, kdf_key);
+
+    char *nonce_hex = NULL;
+    char *ct_hex = NULL;
+    prompt_read_line("Enter nonce (hex): ", &nonce_hex);
+    prompt_read_line("Enter ciphertext (hex): ", &ct_hex);
+
+    uint8_t *nonce = NULL;
+    size_t nonce_len = 0;
+    if (!hex_decode(nonce_hex, &nonce, &nonce_len) || nonce_len == 0)
+    {
+        fprintf(stderr, "Invalid nonce hex\n");
+        free(nonce_hex);
+        free(ct_hex);
+        free(sk);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+
+    uint8_t *ct = NULL;
+    size_t ct_len = 0;
+    if (!hex_decode(ct_hex, &ct, &ct_len))
+    {
+        fprintf(stderr, "Invalid ciphertext hex\n");
+        free(nonce);
+        free(nonce_hex);
+        free(ct_hex);
+        free(sk);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+
+    // Derive keystream and decrypt
+    uint8_t *shake_in = (uint8_t *)malloc(sizeof(kdf_key) + nonce_len);
+    if (!shake_in)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(ct);
+        free(nonce);
+        free(nonce_hex);
+        free(ct_hex);
+        free(sk);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    memcpy(shake_in, kdf_key, sizeof(kdf_key));
+    memcpy(shake_in + sizeof(kdf_key), nonce, nonce_len);
+
+    uint8_t *keystream = (uint8_t *)malloc(ct_len);
+    uint8_t *pt = (uint8_t *)malloc(ct_len);
+    if (!keystream || !pt)
+    {
+        fprintf(stderr, "Out of memory\n");
+        free(keystream);
+        free(pt);
+        free(shake_in);
+        free(ct);
+        free(nonce);
+        free(nonce_hex);
+        free(ct_hex);
+        free(sk);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    OQS_SHA3_shake256(keystream, ct_len, shake_in, sizeof(kdf_key) + nonce_len);
+    for (size_t i = 0; i < ct_len; i++)
+    {
+        pt[i] = ct[i] ^ keystream[i];
+    }
+
+    printf("Decrypted message: ");
+    fwrite(pt, 1, ct_len, stdout);
+    printf("\n");
+
+    free(keystream);
+    free(pt);
+    free(shake_in);
+    free(ct);
+    free(nonce);
+    free(nonce_hex);
+    free(ct_hex);
+    free(sk);
+    OQS_SIG_free(sig);
+}
+
 // ===== Main =====
 int main(int argc, char **argv)
 {
@@ -346,7 +787,7 @@ int main(int argc, char **argv)
 
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>|sign [-o file]|encrypt [-o file]|decrypt]\n", argv[0]);
         return 1;
     }
 
@@ -374,6 +815,43 @@ int main(int argc, char **argv)
             return 1;
         }
         cmd_child(atoi(argv[2]));
+    }
+    else if (strcmp(argv[1], "sign") == 0)
+    {
+        const char *out_path = NULL;
+        if (argc == 4 && strcmp(argv[2], "-o") == 0)
+        {
+            out_path = argv[3];
+        }
+        else if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s sign [-o file]\n", argv[0]);
+            return 1;
+        }
+        cmd_sign(out_path);
+    }
+    else if (strcmp(argv[1], "encrypt") == 0)
+    {
+        const char *out_path = NULL;
+        if (argc == 4 && strcmp(argv[2], "-o") == 0)
+        {
+            out_path = argv[3];
+        }
+        else if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s encrypt [-o file]\n", argv[0]);
+            return 1;
+        }
+        cmd_encrypt(out_path);
+    }
+    else if (strcmp(argv[1], "decrypt") == 0)
+    {
+        if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s decrypt\n", argv[0]);
+            return 1;
+        }
+        cmd_decrypt();
     }
     else
     {
