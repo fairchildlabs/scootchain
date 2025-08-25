@@ -247,6 +247,76 @@ static void save_text_file(const char *path, const char *data, size_t len)
     fclose(f);
 }
 
+static void read_text_file(const char *path, char **out_data, size_t *out_len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f)
+    {
+        perror("fopen");
+        exit(1);
+    }
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
+        perror("fseek");
+        fclose(f);
+        exit(1);
+    }
+    long sz = ftell(f);
+    if (sz < 0)
+    {
+        perror("ftell");
+        fclose(f);
+        exit(1);
+    }
+    rewind(f);
+    char *buf = (char *)malloc((size_t)sz + 1);
+    if (!buf)
+    {
+        fprintf(stderr, "Out of memory\n");
+        fclose(f);
+        exit(1);
+    }
+    size_t n = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    buf[n] = '\0';
+    *out_data = buf;
+    if (out_len)
+    {
+        *out_len = n;
+    }
+}
+
+static void rstrip_whitespace(char *s)
+{
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' ' || s[n - 1] == '\t'))
+    {
+        s[--n] = '\0';
+    }
+}
+
+static char *strip_non_hex(const char *s)
+{
+    size_t len = strlen(s);
+    char *out = (char *)malloc(len + 1);
+    if (!out)
+    {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+        char c = s[i];
+        if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
+        {
+            out[j++] = c;
+        }
+    }
+    out[j] = '\0';
+    return out;
+}
+
 static void prompt_read_line(const char *prompt, char **out)
 {
     printf("%s", prompt);
@@ -675,7 +745,7 @@ void cmd_encrypt(const char *out_path)
 }
 
 // ===== Command: decrypt =====
-void cmd_decrypt(void)
+void cmd_decrypt(const char *in_path)
 {
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
@@ -699,8 +769,39 @@ void cmd_decrypt(void)
 
     char *nonce_hex = NULL;
     char *ct_hex = NULL;
-    prompt_read_line("Enter nonce (hex): ", &nonce_hex);
-    prompt_read_line("Enter ciphertext (hex): ", &ct_hex);
+    if (in_path)
+    {
+        char *file_data = NULL;
+        size_t file_len = 0;
+        read_text_file(in_path, &file_data, &file_len);
+        // Split on first newline
+        char *nl = strchr(file_data, '\n');
+        if (!nl)
+        {
+            fprintf(stderr, "Invalid input file format; expected two lines (nonce hex, ciphertext hex)\n");
+            free(file_data);
+            free(sk);
+            OQS_SIG_free(sig);
+            exit(1);
+        }
+        size_t l1 = (size_t)(nl - file_data);
+        nonce_hex = (char *)malloc(l1 + 1);
+        memcpy(nonce_hex, file_data, l1);
+        nonce_hex[l1] = '\0';
+        char *line2 = nl + 1;
+        // Copy remaining as ciphertext line
+        size_t l2 = strlen(line2);
+        ct_hex = (char *)malloc(l2 + 1);
+        memcpy(ct_hex, line2, l2 + 1);
+        rstrip_whitespace(nonce_hex);
+        rstrip_whitespace(ct_hex);
+        free(file_data);
+    }
+    else
+    {
+        prompt_read_line("Enter nonce (hex): ", &nonce_hex);
+        prompt_read_line("Enter ciphertext (hex): ", &ct_hex);
+    }
 
     uint8_t *nonce = NULL;
     size_t nonce_len = 0;
@@ -780,6 +881,77 @@ void cmd_decrypt(void)
     OQS_SIG_free(sig);
 }
 
+// ===== Command: verify =====
+void cmd_verify(const char *in_path)
+{
+    const char *alg = OQS_SIG_alg_dilithium_2;
+    OQS_SIG *sig = OQS_SIG_new(alg);
+    if (!sig)
+    {
+        fprintf(stderr, "OQS_SIG_new failed\n");
+        exit(1);
+    }
+
+    // Load public key
+    uint8_t *pk = (uint8_t *)malloc(sig->length_public_key);
+    if (!pk)
+    {
+        fprintf(stderr, "Out of memory\n");
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+    load_file("public.key", pk, sig->length_public_key);
+
+    // Read message
+    uint8_t *msg = NULL;
+    size_t msg_len = 0;
+    prompt_and_read_message(&msg, &msg_len);
+
+    // Read signature hex (from file or prompt)
+    char *sig_hex = NULL;
+    if (in_path)
+    {
+        char *file_data = NULL;
+        size_t file_len = 0;
+        read_text_file(in_path, &file_data, &file_len);
+        char *only_hex = strip_non_hex(file_data);
+        free(file_data);
+        sig_hex = only_hex;
+    }
+    else
+    {
+        prompt_read_line("Enter signature (hex): ", &sig_hex);
+    }
+
+    uint8_t *sig_bytes = NULL;
+    size_t sig_len = 0;
+    if (!hex_decode(sig_hex, &sig_bytes, &sig_len))
+    {
+        fprintf(stderr, "Invalid signature hex\n");
+        free(sig_hex);
+        free(msg);
+        free(pk);
+        OQS_SIG_free(sig);
+        exit(1);
+    }
+
+    OQS_STATUS ok = OQS_SIG_verify(sig, msg, msg_len, sig_bytes, sig_len, pk);
+    if (ok == OQS_SUCCESS)
+    {
+        printf("Signature verified ✅\n");
+    }
+    else
+    {
+        printf("Signature INVALID ❌\n");
+    }
+
+    free(sig_bytes);
+    free(sig_hex);
+    free(msg);
+    free(pk);
+    OQS_SIG_free(sig);
+}
+
 // ===== Main =====
 int main(int argc, char **argv)
 {
@@ -787,7 +959,7 @@ int main(int argc, char **argv)
 
     if (argc < 2)
     {
-        fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>|sign [-o file]|encrypt [-o file]|decrypt]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>|sign [-o file]|encrypt [-o file]|decrypt [-i file]|verify [-i file]]\n", argv[0]);
         return 1;
     }
 
@@ -846,12 +1018,31 @@ int main(int argc, char **argv)
     }
     else if (strcmp(argv[1], "decrypt") == 0)
     {
-        if (argc != 2)
+        const char *in_path = NULL;
+        if (argc == 4 && strcmp(argv[2], "-i") == 0)
         {
-            fprintf(stderr, "Usage: %s decrypt\n", argv[0]);
+            in_path = argv[3];
+        }
+        else if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s decrypt [-i file]\n", argv[0]);
             return 1;
         }
-        cmd_decrypt();
+        cmd_decrypt(in_path);
+    }
+    else if (strcmp(argv[1], "verify") == 0)
+    {
+        const char *in_path = NULL;
+        if (argc == 4 && strcmp(argv[2], "-i") == 0)
+        {
+            in_path = argv[3];
+        }
+        else if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s verify [-i file]\n", argv[0]);
+            return 1;
+        }
+        cmd_verify(in_path);
     }
     else
     {
