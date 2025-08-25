@@ -6,4 +6,5 @@
 --indent-preproc-define
 --indent-col1-comments
 --suffix=none
-
+--break-one-line-headers
+--break-one-line-blocks
