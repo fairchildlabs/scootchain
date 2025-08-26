@@ -1,26 +1,21 @@
 #ifndef __SCOOT_TYPES_H
 #define __SCOOT_TYPES_H
 
-// 8-bit types
-typedef unsigned char  UINT8;
-typedef signed char    INT8;
+#include <stdint.h>
 
-// 16-bit types
-typedef unsigned short UINT16;
-typedef signed short   INT16;
+// Explicit fixed-width integer macros
+#define UINT8   uint8_t
+#define SINT8    int8_t
 
-// 32-bit types
-typedef unsigned int   UINT32;
-typedef signed int     INT32;
+#define UINT16  uint16_t
+#define SINT16   int16_t
 
-// 64-bit types
-typedef unsigned long long UINT64;
-typedef signed long long   INT64;
-typedef signed long long   SINT64;
+#define UINT32  uint32_t
+#define SINT32   int32_t
 
+#define UINT64  uint64_t
+#define SINT64  int64_t
 
 typedef UINT64 scoot_ts;
-
-
 
 #endif

@@ -18,25 +18,25 @@
 //*************************************************************************************************
 // This mess setup up enumerations with matching string decode
 // Unfortunately, this hack prevents explict assigning of a partciular value
-// TODO: Somebody come up with a better one that allows assignment of the enum value 
+// TODO: Somebody come up with a better one that allows assignment of the enum value
 // WARNING:  Until then, only add enums at the END of the series, doing otherwise will invalidate blocks
 //*************************************************************************************************
 
 #define SC_BLOCK_TYPE \
-	__Cx(ScBtGenesis) \
-	__Cx(ScBtMint) \
-	__Cx(ScBtProclaim) \
+    __Cx(ScBtGenesis) \
+    __Cx(ScBtMint) \
+    __Cx(ScBtProclaim) \
 
-#define __Cx(x) x, 
+#define __Cx(x) x,
 enum ScBlockTypeEnum { SC_BLOCK_TYPE ScBtMaxEnum };
 #undef __Cx
 #define __Cx(x) #x,
 static const char* const ScBtStr[] = { SC_BLOCK_TYPE };
-#define ScootBlockTypeStr(x) &ScBtStr[x][4] 
+#define ScootBlockTypeStr(x) &ScBtStr[x][4]
 
 
 //*************************************************************************************************
-// Scoot-chain blocks are of fixed sizes (512/4096/16K/64K...) 
+// Scoot-chain blocks are of fixed sizes (512/4096/16K/64K...)
 // Physical blocks are padded, unless compressed, where Padding is stripped
 // Transactional blocks are single block units (containing as many transactions as will fit)
 // You'd use larger blocks on scootchains that have high amount of media content on chain
@@ -44,34 +44,34 @@ static const char* const ScBtStr[] = { SC_BLOCK_TYPE };
 //*************************************************************************************************
 
 #define SC_BLOCK_UNIT_LEN \
-	__Dx(ScBul512b) \
-	__Dx(ScBul4k) \
-	__Dx(ScBul16k) \
-	__Dx(ScBul64k) \
-	__Dx(ScBul256k) \
-	__Dx(ScBul1M) \
+    __Dx(ScBul512b) \
+    __Dx(ScBul4k) \
+    __Dx(ScBul16k) \
+    __Dx(ScBul64k) \
+    __Dx(ScBul256k) \
+    __Dx(ScBul1M) \
 
-#define __Dx(x) x, 
+#define __Dx(x) x,
 enum ScBlockUnitLenEnum { SC_BLOCK_UNIT_LEN ScBulMaxEnum };
 #undef __Dx
 #define __Dx(x) #x,
 static const char* const ScBulStr[] = { SC_BLOCK_UNIT_LEN };
-#define ScootBulStr(x) &ScBulStr[x][5] 
+#define ScootBulStr(x) &ScBulStr[x][5]
 
 
 
 typedef struct _scootchain_header
 {
-	SINT64                      scoot_idx;
-	UINT32                      block_number;                //Always sequential and block 1 is genesis block
-	UINT32                      block_count;                 //Releated Content logical blocks may span multple block units
-	UINT32                      block_entry;                 //Sequencing for spanned content blocks
-	UINT32						block_byte_len;              //number of valid bypes in block, including header 
-	UINT32                      rsvd_blkscoot_extension;     //future proof 128 byte header for scoot/blocknum exceeting 32-bit (can also eat into block_entry/block count) 
-	enum ScBlockTypeEnum        bt;
-	enum ScBlockUnitLenEnum     bul;                         //Block Unit Length - short blocks always padded 
+    SINT64                      scoot_idx;
+    UINT32                      block_number;                //Always sequential and block 1 is genesis block
+    UINT32                      block_count;                 //Releated Content logical blocks may span multple block units
+    UINT32                      block_entry;                 //Sequencing for spanned content blocks
+    UINT32						block_byte_len;              //number of valid bypes in block, including header
+    UINT32                      rsvd_blkscoot_extension;     //future proof 128 byte header for scoot/blocknum exceeting 32-bit (can also eat into block_entry/block count)
+    enum ScBlockTypeEnum        bt;
+    enum ScBlockUnitLenEnum     bul;                         //Block Unit Length - short blocks always padded
 
-	UINT32                      rsvd[23];                   
+    UINT32                      rsvd[23];
 
 } scootchain_header;
 
@@ -79,60 +79,60 @@ typedef struct _scootchain_header
 #define SCOOT_SPEC_BLOCK_HEADER_SIZE 128
 #define MAX_GENESIS_SEATS 12
 //*************************************************************************************************
-//Scoot Unit Type 
+//Scoot Unit Type
 //*************************************************************************************************
 #define SC_UNIT_TYPE \
-	__Ex(ScUtFractional) \
-	__Ex(ScUtSerialized) \
-	__Ex(ScUtPrimeShard) \
+    __Ex(ScUtFractional) \
+    __Ex(ScUtSerialized) \
+    __Ex(ScUtPrimeShard) \
 
-#define __Ex(x) x, 
+#define __Ex(x) x,
 enum ScUtEnum { SC_UNIT_TYPE ScUtMaxEnum };
 #undef __Ex
 #define __Ex(x) #x,
 static const char* const ScUtStr[] = { SC_UNIT_TYPE };
 
-#define ScootUtStr(x) &ScUtStr[x][4] 
+#define ScootUtStr(x) &ScUtStr[x][4]
 //*************************************************************************************************
-//Scoot Electorate Types 
+//Scoot Electorate Types
 //*************************************************************************************************
 #define SC_ELECTORAL_TYPE \
-	__Gx(ScEtAsimass) \
-	__Gx(ScEtScootoro) \
-	__Gx(ScEtScootara) \
+    __Gx(ScEtAsimass) \
+    __Gx(ScEtScootoro) \
+    __Gx(ScEtScootara) \
 
-#define __Gx(x) x, 
+#define __Gx(x) x,
 enum ScEtEnum { SC_ELECTORAL_TYPE ScEtMaxEnum };
 #undef __Gx
 #define __Gx(x) #x,
 static const char* const ScEtStr[] = { SC_ELECTORAL_TYPE };
 
-#define ScootEtStr(x) &ScEtStr[x][4] 
+#define ScootEtStr(x) &ScEtStr[x][4]
 
 //*************************************************************************************************
-//Scoot Elective Period Types 
+//Scoot Elective Period Types
 //*************************************************************************************************
 #define SC_ELECTIVE_PERIOD_TYPE \
-	__Gex(ScEptYears) \
-	__Gex(ScEptDays) \
+    __Gex(ScEptYears) \
+    __Gex(ScEptDays) \
 
-#define __Gex(x) x, 
+#define __Gex(x) x,
 enum ScEptEnum { SC_ELECTIVE_PERIOD_TYPE ScEptMaxEnum };
 #undef __Gex
 #define __Gex(x) #x,
 static const char* const ScEptStr[] = { SC_ELECTIVE_PERIOD_TYPE };
-#define ScootEptStr(x) &ScEptStr[x][5] 
+#define ScootEptStr(x) &ScEptStr[x][5]
 
 
 typedef union _scootchain_u_powers
 {
-	UINT32 powers32;
-	struct _bitmask_powers
-	{
-		UINT32 trustee            : 1;
-		UINT32 genesis_assignment : 1;
-		
-	} bmpow;
+    UINT32 powers32;
+    struct _bitmask_powers
+    {
+        UINT32 trustee            : 1;
+        UINT32 genesis_assignment : 1;
+
+    } bmpow;
 
 } scootchain_electoral_powers;
 
@@ -140,15 +140,15 @@ typedef union _scootchain_u_powers
 
 typedef struct _scootchain_elector_types_common
 {
-	DATETIME           first_election;
-	UINT8              type;
-	UINT8              inanuargartion_days_offset; //inaugragation must be less than 255 days after election
-	UINT8              elective_period_type;
-	UINT8              elective_period;
-	UINT32             subtype;
-	UINT32             p1;
-	UINT32             p2;
-	UINT32             ballotlink;  //seats linked by a common ballot
+    DATETIME           first_election;
+    UINT8              type;
+    UINT8              inanuargartion_days_offset; //inaugragation must be less than 255 days after election
+    UINT8              elective_period_type;
+    UINT8              elective_period;
+    UINT32             subtype;
+    UINT32             p1;
+    UINT32             p2;
+    UINT32             ballotlink;  //seats linked by a common ballot
 
 } scootchain_electoral_types;
 
@@ -163,22 +163,22 @@ typedef struct _scootchain_elector_types_common
 
 typedef struct _scootchain_seat_desc
 {
-	scootchain_electoral_types  type;
-	scootchain_electoral_powers powers;
+    scootchain_electoral_types  type;
+    scootchain_electoral_powers powers;
 
 } scoot_chain_seat_descriptor;
 
 typedef struct _scootchain_genesis_block
 {
-	//-- Scoot Unit -----------------------------------------------------
-	scootchain_header                              header;
-	SINT64                                         scoot_index;
-	enum ScUtEnum                                  scoot_unit_type;
-	UINT64                                         scoot_subunit;
-	//----Electoral ------------------------------------------------------
-	UINT32                                         scoot_seats;
+    //-- Scoot Unit -----------------------------------------------------
+    scootchain_header                              header;
+    SINT64                                         scoot_index;
+    enum ScUtEnum                                  scoot_unit_type;
+    UINT64                                         scoot_subunit;
+    //----Electoral ------------------------------------------------------
+    UINT32                                         scoot_seats;
 
-	scoot_chain_seat_descriptor                    scsd[MAX_GENESIS_SEATS];
+    scoot_chain_seat_descriptor                    scsd[MAX_GENESIS_SEATS];
 
 
 } scootchain_genesis_block;
@@ -215,7 +215,7 @@ typedef struct _uscootaddress
 
 typedef struct
 {
-    INT64    scoot_index;
+    SINT64    scoot_index;
     UINT64   block_number;
     UINT16   version;
     UINT8    block_type;
@@ -233,7 +233,7 @@ typedef struct
 
 typedef struct
 {
-    INT64   scoot_index;
+    SINT64   scoot_index;
     scoot_ts   scoot_timestamp;
 
 } scootchain_genesis_block_header;
