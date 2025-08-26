@@ -16,7 +16,7 @@ LDLIBS = third_party/liboqs/build/lib/liboqs.a \
 
 # Sources / objects / target
 # SRC = scootchain.c db_wrapper.c
-SRC = scootchain.c
+SRC = scootchain.c genesis.c
 OBJ = $(SRC:.c=.o)
 DEPS = $(OBJ:.o=.d)
 TARGET = scootchain
