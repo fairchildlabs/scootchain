@@ -11,13 +11,7 @@
  * via the flag byte.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <oqs/oqs.h>
-#include <oqs/sha3.h>
-#include "db_wrapper.h"
+
 #include "scootchain.h"
 
 #define ADDR_LEN 34  // Updated: 1 flag + 1 checksum + 32 address hash
