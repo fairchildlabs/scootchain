@@ -464,7 +464,7 @@ void cmd_genkey(void)
 }
 
 // ===== Command: genwallet =====
-void cmd_genwallet(void)
+void cmd_genwallet(UINT8 flags, int has_flags)
 {
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
@@ -474,6 +474,15 @@ void cmd_genwallet(void)
 
     scoot_address address;
     pubkey_to_address(pub, sig->length_public_key, &address);
+    if (has_flags)
+    {
+        // Override flags and recompute checksum
+        address.u.flags = flags;
+        UINT8 checksum_data[33];
+        checksum_data[0] = address.u.flags;
+        memcpy(checksum_data + 1, address.hash, 32);
+        address.checksum = crc8(checksum_data, 33);
+    }
     save_file("wallet.addr", (UINT8 *)&address, ADDR_LEN);
 
     printf("Wallet address generated: wallet.addr\n");
@@ -986,7 +995,34 @@ int main(int argc, char **argv)
     }
     else if (strcmp(argv[1], "genwallet") == 0)
     {
-        cmd_genwallet();
+        if (argc == 2)
+        {
+            cmd_genwallet(0, 0);
+        }
+        else if (argc == 3)
+        {
+            char *end = NULL;
+            long v;
+            if ((argv[2][0] == '0') && (argv[2][1] == 'x' || argv[2][1] == 'X'))
+            {
+                v = strtol(argv[2], &end, 16);
+            }
+            else
+            {
+                v = strtol(argv[2], &end, 10);
+            }
+            if (end == NULL || *end != '\0' || v < 0 || v > 255)
+            {
+                fprintf(stderr, "Usage: %s genwallet [flags (0..255 or 0x..)]\n", argv[0]);
+                return 1;
+            }
+            cmd_genwallet((UINT8)v, 1);
+        }
+        else
+        {
+            fprintf(stderr, "Usage: %s genwallet [flags]\n", argv[0]);
+            return 1;
+        }
     }
     else if (strcmp(argv[1], "checkwallet") == 0)
     {
