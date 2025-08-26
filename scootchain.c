@@ -18,7 +18,7 @@
 #define SEED_LEN 32
 
 // ===== Utility: SHA3-256 via SHAKE256 (liboqs one-shot) =====
-void sha3_256(const uint8_t *in, size_t in_len, uint8_t *out)
+void sha3_256(const UINT8 *in, size_t in_len, UINT8 *out)
 {
     OQS_SHA3_shake256(out, 32, in, in_len);
 }
@@ -26,7 +26,7 @@ void sha3_256(const uint8_t *in, size_t in_len, uint8_t *out)
 // ===== CRC-8 implementation with polynomial 0x07 =====
 // CRC-8 with polynomial 0x07 (x^8 + x^2 + x + 1)
 // Used for address checksum validation
-uint8_t crc8_table[256];
+UINT8 crc8_table[256];
 static int crc8_table_initialized = 0;
 
 void crc8_init_table(void)
@@ -36,10 +36,10 @@ void crc8_init_table(void)
         return;
     }
 
-    const uint8_t poly = 0x07;  // Standard CRC-8 polynomial
+    const UINT8 poly = 0x07;  // Standard CRC-8 polynomial
     for (int i = 0; i < 256; i++)
     {
-        uint8_t crc = i;
+        UINT8 crc = i;
         for (int j = 0; j < 8; j++)
         {
             if (crc & 0x80)
@@ -56,11 +56,11 @@ void crc8_init_table(void)
     crc8_table_initialized = 1;
 }
 
-uint8_t crc8(const uint8_t *data, size_t len)
+UINT8 crc8(const UINT8 *data, size_t len)
 {
     crc8_init_table();
 
-    uint8_t crc = 0;
+    UINT8 crc = 0;
     for (size_t i = 0; i < len; i++)
     {
         crc = crc8_table[crc ^ data[i]];
@@ -71,24 +71,24 @@ uint8_t crc8(const uint8_t *data, size_t len)
 // ===== Local DRBG for deterministic keys =====
 typedef struct
 {
-    uint8_t state[32];
-    uint64_t counter;
+    UINT8 state[32];
+    UINT64 counter;
 } local_drbg_t;
 
-void local_drbg_init(local_drbg_t *drbg, const uint8_t *seed)
+void local_drbg_init(local_drbg_t *drbg, const UINT8 *seed)
 {
     memcpy(drbg->state, seed, 32);
     drbg->counter = 0;
 }
 
-void local_drbg_randombytes(local_drbg_t *drbg, uint8_t *out, size_t outlen)
+void local_drbg_randombytes(local_drbg_t *drbg, UINT8 *out, size_t outlen)
 {
-    uint8_t buf[40];
+    UINT8 buf[40];
     while (outlen > 0)
     {
         memcpy(buf, drbg->state, 32);
         memcpy(buf + 32, &drbg->counter, 8);
-        uint8_t hash[32];
+        UINT8 hash[32];
         sha3_256(buf, sizeof(buf), hash);
 
         size_t take = outlen < 32 ? outlen : 32;
@@ -100,7 +100,7 @@ void local_drbg_randombytes(local_drbg_t *drbg, uint8_t *out, size_t outlen)
 }
 
 // ===== Save & Load helpers =====
-void save_file(const char *path, const uint8_t *data, size_t len)
+void save_file(const char *path, const UINT8 *data, size_t len)
 {
     FILE *f = fopen(path, "wb");
     if (!f)
@@ -112,7 +112,7 @@ void save_file(const char *path, const uint8_t *data, size_t len)
     fclose(f);
 }
 
-void load_file(const char *path, uint8_t *data, size_t len)
+void load_file(const char *path, UINT8 *data, size_t len)
 {
     FILE *f = fopen(path, "rb");
     if (!f)
@@ -133,10 +133,10 @@ void load_file(const char *path, uint8_t *data, size_t len)
 // flag: 1 byte (set to 0 for now)
 // checksum: 1 byte (CRC-8 over flag + 32-byte hash)
 // hash: 32 bytes (SHA3-256 of public key)
-void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, scoot_address *pAddress)
+void pubkey_to_address(const UINT8 *pubkey, size_t pubkey_len, scoot_address *pAddress)
 {
     // Generate 32-byte hash from public key
-    uint8_t hash[32];
+    UINT8 hash[32];
     sha3_256(pubkey, pubkey_len, hash);
 
     // Set flag byte to 0
@@ -146,7 +146,7 @@ void pubkey_to_address(const uint8_t *pubkey, size_t pubkey_len, scoot_address *
     memcpy(pAddress->hash, hash, 32);
 
     // Calculate checksum over flag (position 0) and hash (positions 2-33)
-    uint8_t checksum_data[33];
+    UINT8 checksum_data[33];
     checksum_data[0] = pAddress->u.flags;  // flag
     memcpy(checksum_data + 1, hash, 32);  // hash
 
@@ -160,19 +160,19 @@ int validate_address(const scoot_address address)
 {
 
     // Prepare data for checksum verification: flag + hash
-    uint8_t checksum_data[33];
+    UINT8 checksum_data[33];
     checksum_data[0] = address.u.flags;  // flag
     memcpy(checksum_data + 1, address.hash, 32);  // hash from positions 2-33
 
     // Calculate expected checksum
-    uint8_t expected_checksum = crc8(checksum_data, 33);
+    UINT8 expected_checksum = crc8(checksum_data, 33);
 
     // Compare with stored checksum at position 1
     return (address.checksum == expected_checksum) ? 1 : 0;
 }
 
 // ===== Simple helpers =====
-static void hex_encode(const uint8_t *in, size_t in_len, char *out)
+static void hex_encode(const UINT8 *in, size_t in_len, char *out)
 {
     static const char *hex = "0123456789abcdef";
     for (size_t i = 0; i < in_len; i++)
@@ -200,7 +200,7 @@ static int hex_value(char c)
     return -1;
 }
 
-static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
+static int hex_decode(const char *hex, UINT8 **out, size_t *outlen)
 {
     size_t len = strlen(hex);
     if (len == 0 )//|| ((len - 1) % 2) != 0)
@@ -211,7 +211,7 @@ static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
         return 0;
     }
     size_t blen = len / 2;
-    uint8_t *buf = (uint8_t *)malloc(blen);
+    UINT8 *buf = (UINT8 *)malloc(blen);
     if (!buf)
     {
         printf("!BUF blen = %ld\n", blen);
@@ -227,7 +227,7 @@ static int hex_decode(const char *hex, uint8_t **out, size_t *outlen)
             free(buf);
             return 0;
         }
-        buf[i] = (uint8_t)((hi << 4) | lo);
+        buf[i] = (UINT8)((hi << 4) | lo);
     }
     *out = buf;
     *outlen = blen;
@@ -368,13 +368,13 @@ static void prompt_read_line(const char *prompt, char **out)
     *out = buf;
 }
 
-static void prompt_and_read_message(uint8_t **msg, size_t *len)
+static void prompt_and_read_message(UINT8 **msg, size_t *len)
 {
     printf("Enter message: ");
     fflush(stdout);
 
     size_t cap = 256;
-    uint8_t *buf = (uint8_t *)malloc(cap);
+    UINT8 *buf = (UINT8 *)malloc(cap);
     if (!buf)
     {
         fprintf(stderr, "Out of memory\n");
@@ -388,7 +388,7 @@ static void prompt_and_read_message(uint8_t **msg, size_t *len)
         if (n + 1 > cap)
         {
             cap *= 2;
-            uint8_t *nbuf = (uint8_t *)realloc(buf, cap);
+            UINT8 *nbuf = (UINT8 *)realloc(buf, cap);
             if (!nbuf)
             {
                 free(buf);
@@ -397,7 +397,7 @@ static void prompt_and_read_message(uint8_t **msg, size_t *len)
             }
             buf = nbuf;
         }
-        buf[n++] = (uint8_t)c;
+        buf[n++] = (UINT8)c;
     }
 
     *msg = buf;
@@ -405,7 +405,7 @@ static void prompt_and_read_message(uint8_t **msg, size_t *len)
 }
 
 // ===== Deterministic keypair from seed =====
-void genkey_from_seed(const uint8_t *seed)
+void genkey_from_seed(const UINT8 *seed)
 {
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
@@ -415,8 +415,8 @@ void genkey_from_seed(const uint8_t *seed)
         exit(1);
     }
 
-    uint8_t *pub = malloc(sig->length_public_key);
-    uint8_t *priv = malloc(sig->length_secret_key);
+    UINT8 *pub = malloc(sig->length_public_key);
+    UINT8 *priv = malloc(sig->length_secret_key);
 
     local_drbg_t drbg;
     local_drbg_init(&drbg, seed);
@@ -444,8 +444,8 @@ void cmd_genkey(void)
         exit(1);
     }
 
-    uint8_t *pub = malloc(sig->length_public_key);
-    uint8_t *priv = malloc(sig->length_secret_key);
+    UINT8 *pub = malloc(sig->length_public_key);
+    UINT8 *priv = malloc(sig->length_secret_key);
 
     if (OQS_SIG_keypair(sig, pub, priv) != OQS_SUCCESS)
     {
@@ -469,12 +469,12 @@ void cmd_genwallet(void)
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
 
-    uint8_t *pub = malloc(sig->length_public_key);
+    UINT8 *pub = malloc(sig->length_public_key);
     load_file("public.key", pub, sig->length_public_key);
 
     scoot_address address;
     pubkey_to_address(pub, sig->length_public_key, &address);
-    save_file("wallet.addr", (uint8_t *)&address, ADDR_LEN);
+    save_file("wallet.addr", (UINT8 *)&address, ADDR_LEN);
 
     printf("Wallet address generated: wallet.addr\n");
 
@@ -488,11 +488,11 @@ void cmd_checkwallet(void)
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
 
-    uint8_t *pub = malloc(sig->length_public_key);
+    UINT8 *pub = malloc(sig->length_public_key);
     load_file("public.key", pub, sig->length_public_key);
 
     scoot_address expected_addr;
-    load_file("wallet.addr", (uint8_t *)&expected_addr, ADDR_LEN);
+    load_file("wallet.addr", (UINT8 *)&expected_addr, ADDR_LEN);
 
     // Validate address format first
     if (!validate_address(expected_addr))
@@ -538,8 +538,8 @@ void cmd_seedgen(int argc, char **argv)
         }
     }
 
-    uint8_t seed[SEED_LEN];
-    sha3_256((uint8_t *)combined, strlen(combined), seed);
+    UINT8 seed[SEED_LEN];
+    sha3_256((UINT8 *)combined, strlen(combined), seed);
 
     genkey_from_seed(seed);
 }
@@ -550,14 +550,14 @@ void cmd_child(int index)
     const char *alg = OQS_SIG_alg_dilithium_2;
     OQS_SIG *sig = OQS_SIG_new(alg);
 
-    uint8_t *master_priv = malloc(sig->length_secret_key);
+    UINT8 *master_priv = malloc(sig->length_secret_key);
     load_file("private.key", master_priv, sig->length_secret_key);
 
-    uint8_t buf[4096];
+    UINT8 buf[4096];
     memcpy(buf, master_priv, sig->length_secret_key);
     memcpy(buf + sig->length_secret_key, &index, sizeof(index));
 
-    uint8_t child_seed[SEED_LEN];
+    UINT8 child_seed[SEED_LEN];
     sha3_256(buf, sig->length_secret_key + sizeof(index), child_seed);
 
     genkey_from_seed(child_seed);
@@ -577,7 +577,7 @@ void cmd_sign(const char *out_path)
         exit(1);
     }
 
-    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    UINT8 *sk = (UINT8 *)malloc(sig->length_secret_key);
     if (!sk)
     {
         fprintf(stderr, "Out of memory\n");
@@ -586,12 +586,12 @@ void cmd_sign(const char *out_path)
     }
     load_file("private.key", sk, sig->length_secret_key);
 
-    uint8_t *msg = NULL;
+    UINT8 *msg = NULL;
     size_t msg_len = 0;
     prompt_and_read_message(&msg, &msg_len);
 
     size_t sig_len = sig->length_signature;
-    uint8_t *signature = (uint8_t *)malloc(sig_len);
+    UINT8 *signature = (UINT8 *)malloc(sig_len);
     if (!signature)
     {
         fprintf(stderr, "Out of memory\n");
@@ -651,7 +651,7 @@ void cmd_encrypt(const char *out_path)
     }
 
     // Load private key bytes (only used as entropy for key derivation)
-    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    UINT8 *sk = (UINT8 *)malloc(sig->length_secret_key);
     if (!sk)
     {
         fprintf(stderr, "Out of memory\n");
@@ -661,20 +661,20 @@ void cmd_encrypt(const char *out_path)
     load_file("private.key", sk, sig->length_secret_key);
 
     // Derive a 32-byte key from private.key
-    uint8_t kdf_key[32];
+    UINT8 kdf_key[32];
     sha3_256(sk, sig->length_secret_key, kdf_key);
 
     // Read message
-    uint8_t *msg = NULL;
+    UINT8 *msg = NULL;
     size_t msg_len = 0;
     prompt_and_read_message(&msg, &msg_len);
 
     // Random nonce
-    uint8_t nonce[16];
+    UINT8 nonce[16];
     OQS_randombytes(nonce, sizeof(nonce));
 
     // Build input to SHAKE: key || nonce
-    uint8_t *shake_in = (uint8_t *)malloc(sizeof(kdf_key) + sizeof(nonce));
+    UINT8 *shake_in = (UINT8 *)malloc(sizeof(kdf_key) + sizeof(nonce));
     if (!shake_in)
     {
         fprintf(stderr, "Out of memory\n");
@@ -687,8 +687,8 @@ void cmd_encrypt(const char *out_path)
     memcpy(shake_in + sizeof(kdf_key), nonce, sizeof(nonce));
 
     // Derive keystream and encrypt
-    uint8_t *keystream = (uint8_t *)malloc(msg_len);
-    uint8_t *ct = (uint8_t *)malloc(msg_len);
+    UINT8 *keystream = (UINT8 *)malloc(msg_len);
+    UINT8 *ct = (UINT8 *)malloc(msg_len);
     if (!keystream || !ct)
     {
         fprintf(stderr, "Out of memory\n");
@@ -772,7 +772,7 @@ void cmd_decrypt(const char *in_path)
     }
 
     // Load private key and derive key
-    uint8_t *sk = (uint8_t *)malloc(sig->length_secret_key);
+    UINT8 *sk = (UINT8 *)malloc(sig->length_secret_key);
     if (!sk)
     {
         fprintf(stderr, "Out of memory\n");
@@ -780,7 +780,7 @@ void cmd_decrypt(const char *in_path)
         exit(1);
     }
     load_file("private.key", sk, sig->length_secret_key);
-    uint8_t kdf_key[32];
+    UINT8 kdf_key[32];
     sha3_256(sk, sig->length_secret_key, kdf_key);
 
     char *nonce_hex = NULL;
@@ -819,7 +819,7 @@ void cmd_decrypt(const char *in_path)
         prompt_read_line("Enter ciphertext (hex): ", &ct_hex);
     }
 
-    uint8_t *nonce = NULL;
+    UINT8 *nonce = NULL;
     size_t nonce_len = 0;
     if (!hex_decode(nonce_hex, &nonce, &nonce_len) || nonce_len == 0)
     {
@@ -831,7 +831,7 @@ void cmd_decrypt(const char *in_path)
         exit(1);
     }
 
-    uint8_t *ct = NULL;
+    UINT8 *ct = NULL;
     size_t ct_len = 0;
     if (!hex_decode(ct_hex, &ct, &ct_len))
     {
@@ -845,7 +845,7 @@ void cmd_decrypt(const char *in_path)
     }
 
     // Derive keystream and decrypt
-    uint8_t *shake_in = (uint8_t *)malloc(sizeof(kdf_key) + nonce_len);
+    UINT8 *shake_in = (UINT8 *)malloc(sizeof(kdf_key) + nonce_len);
     if (!shake_in)
     {
         fprintf(stderr, "Out of memory\n");
@@ -860,8 +860,8 @@ void cmd_decrypt(const char *in_path)
     memcpy(shake_in, kdf_key, sizeof(kdf_key));
     memcpy(shake_in + sizeof(kdf_key), nonce, nonce_len);
 
-    uint8_t *keystream = (uint8_t *)malloc(ct_len);
-    uint8_t *pt = (uint8_t *)malloc(ct_len);
+    UINT8 *keystream = (UINT8 *)malloc(ct_len);
+    UINT8 *pt = (UINT8 *)malloc(ct_len);
     if (!keystream || !pt)
     {
         fprintf(stderr, "Out of memory\n");
@@ -909,7 +909,7 @@ void cmd_verify(const char *in_path)
     }
 
     // Load public key
-    uint8_t *pk = (uint8_t *)malloc(sig->length_public_key);
+    UINT8 *pk = (UINT8 *)malloc(sig->length_public_key);
     if (!pk)
     {
         fprintf(stderr, "Out of memory\n");
@@ -919,7 +919,7 @@ void cmd_verify(const char *in_path)
     load_file("public.key", pk, sig->length_public_key);
 
     // Read message
-    uint8_t *msg = NULL;
+    UINT8 *msg = NULL;
     size_t msg_len = 0;
     prompt_and_read_message(&msg, &msg_len);
 
@@ -940,7 +940,7 @@ void cmd_verify(const char *in_path)
         prompt_read_line("Enter signature (hex): ", &sig_hex);
     }
 
-    uint8_t *sig_bytes = NULL;
+    UINT8 *sig_bytes = NULL;
     size_t sig_len = 0;
     if (!hex_decode(sig_hex, &sig_bytes, &sig_len))
     {
