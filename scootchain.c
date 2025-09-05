@@ -197,7 +197,12 @@ void cmd_child(int index) {
 
 // ===== Main =====
 int main(int argc, char **argv) 
-{
+{ 
+
+	printf("sizeof (scootchain_block_header) = %ld\n",sizeof (scootchain_block_header));
+		
+
+
     if (argc < 2) {
         fprintf(stderr, "Usage: %s [genkey|genwallet|checkwallet|seedgen|child <index>]\n", argv[0]);
         return 1;

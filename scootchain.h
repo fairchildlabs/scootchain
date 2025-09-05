@@ -25,12 +25,24 @@ typedef struct
 	UINT8  block_type;
 	UINT8  block_flags;
 	UINT32 block_length;
-	 INT32 index;
+	INT64  scoot_index;
 	UINT64 ts;	
-	UINT8  prev_block_hash[32];
-	UINT8  this_block_hash[32];
-
-
+	UINT8  prev_block_header_hash[32];
+	UINT8  signed_block_hash[32];
+	
+	UINT8  rsvd[40];
+	
 } scootchain_block_header;
+
+
+typedef struct
+{
+	UINT16 type;
+	
+
+
+} scootchain_genesis_block;
+
+
 
 #endif
