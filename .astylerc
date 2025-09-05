@@ -1,0 +1,11 @@
+--mode=c
+--style=allman
+--indent=spaces=4
+--indent-switches
+--indent-preproc-block
+--indent-preproc-define
+--indent-col1-comments
+--suffix=none
+# Formatting preferences
+--break-one-line-headers
+--add-braces
